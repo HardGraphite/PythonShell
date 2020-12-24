@@ -62,10 +62,11 @@ def __reload_all_modules_name():
 
 def list_all_modules(use_cache=True) -> List[str]:
     """list all installed modules"""
-    if use_cache and __all_modules: # use cache
-        return __all_modules
-
-    __reload_all_modules_name()
+    if not use_cache:
+        __reload_all_modules_name()
+    elif not __subproc_running.locked():
+        __subproc_running.acquire()
+        __subproc_running.release()
 
     return __all_modules
 

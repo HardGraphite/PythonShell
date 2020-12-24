@@ -3,6 +3,7 @@ readline completer
 """
 
 import abc
+import re
 from typing import Dict, Iterable, List, Tuple, Union
 from . import lsmods
 
@@ -166,12 +167,36 @@ class ImportMatcher(Matcher):
                 if mod.startswith(self.__name):
                     return mod
 
+    class FromModIter:
+        def __init__(self, mod, name: str) -> None:
+            self.__mod_attrs_iter = iter(dir(mod))
+            self.__name = name
+
+        def __iter__(self):
+            return self
+
+        def __next__(self) -> str:
+            while True:
+                mod = next(self.__mod_attrs_iter)
+                if mod.startswith(self.__name):
+                    return mod
+
     def __init__(self, fn_get_cur_ln) -> None:
         self._mods = lsmods.list_all_modules()
         self._fn_gcl = fn_get_cur_ln
 
     def __call__(self, text: str) -> Iterable[str]:
-        if self._fn_gcl().startswith('import'):
+        input_line: str = self._fn_gcl()
+
+        if input_line.startswith('import'):
             raise FinalMatchResult(self.ModIter(self._mods, text))
+        elif input_line.startswith('from') and '.' not in input_line:
+            if not (match := re.match(r'from\s+(\w+)\s+import\.*', input_line)):
+                return []
+            try:
+                mod = __import__(match.group(1))
+            except (ImportError, ModuleNotFoundError) as e:
+                return []
+            raise FinalMatchResult(self.FromModIter(mod, text))
         else:
             return []
